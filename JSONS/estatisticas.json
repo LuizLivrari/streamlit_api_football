@@ -1,0 +1,15 @@
+{
+    "get": "fixtures",
+    "parameters": {
+        "ids": "1183246-1208512-1208520-1234657-1234654-1234652-1208519-1212912-1208514"
+    },
+    "errors": {
+        "rateLimit": "Too many requests. Your rate limit is 10 requests per minute."
+    },
+    "results": 0,
+    "paging": {
+        "current": 1,
+        "total": 1
+    },
+    "response": []
+}
