@@ -1,10 +1,10 @@
 {
     "get": "fixtures",
     "parameters": {
-        "ids": "1183246-1208512-1208520-1234657-1234654-1234652-1208519-1212912-1208514"
+        "ids": "1226192-1223624-1226200-1217526-1212463-1212460-1212457-1212461-1212456-1212459-1212458-1223990-1213766-1223618-1215884-1217528-1183253-1226197-1226193-1226196"
     },
     "errors": {
-        "rateLimit": "Too many requests. Your rate limit is 10 requests per minute."
+        "requests": "You have reached the request limit for the day, Go to https://dashboard.api-football.com to upgrade your plan."
     },
     "results": 0,
     "paging": {
