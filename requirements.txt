@@ -1,7 +1,7 @@
 streamlit
 SQLAlchemy
 pandas
-urllib
+urllib3
 datetime
 json
 requests

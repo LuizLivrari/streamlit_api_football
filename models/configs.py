@@ -1,5 +1,5 @@
 from sqlalchemy import create_engine
-import urllib.parse
+import urllib3.parse
 # from openai import OpenAI
 # from dotenv import load_dotenv, find_dotenv
 
@@ -8,7 +8,7 @@ import urllib.parse
 # OpenAIClient = OpenAI()
 # MODEL= 'gpt-4o-mini'
 
-varStringConexao = f'postgresql+psycopg://{urllib.parse.quote_plus('postgres')}:{urllib.parse.quote_plus('ApiF@9137')}@localhost:5435/novo_banco'
+varStringConexao = f'postgresql+psycopg://{urllib3.parse.quote_plus('postgres')}:{urllib3.parse.quote_plus('ApiF@9137')}@localhost:5435/novo_banco'
 
 varEngine = create_engine( varStringConexao, echo=True )
 
