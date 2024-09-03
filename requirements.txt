@@ -1,5 +1,5 @@
 streamlit
-sqlalchemy
+SQLAlchemy
 pandas
 urllib
 datetime
