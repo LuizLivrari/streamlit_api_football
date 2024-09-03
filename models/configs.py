@@ -1,3 +1,4 @@
+import urllib.parse
 from sqlalchemy import create_engine
 import urllib.parse
 # from openai import OpenAI
@@ -8,7 +9,7 @@ import urllib.parse
 # OpenAIClient = OpenAI()
 # MODEL= 'gpt-4o-mini'
 
-varStringConexao = f'postgresql+psycopg://{urllib.parse('postgres')}:{urllib.parse('ApiF@9137')}@localhost:5435/novo_banco'
+varStringConexao = f'postgresql+psycopg://{urllib.parse.quote_plus('postgres')}:{urllib.parse.quote_plus('ApiF@9137')}@localhost:5435/novo_banco'
 
 varEngine = create_engine( varStringConexao, echo=True )
 
