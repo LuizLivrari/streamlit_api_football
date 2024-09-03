@@ -1,4 +1,2 @@
 streamlit
 SQLAlchemy
-pandas
-urllib3
