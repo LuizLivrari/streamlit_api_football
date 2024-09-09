@@ -11,7 +11,7 @@ tbJogos = Table( 'partidas', metadata )
 
 tbPaises = Table( 'paises', metadata )
 
-tbJogosEstatisticas = Table( 'partidas_estatisticas', metadata )
+tbEstatisticas = Table( 'partidas_estatisticas', metadata )
 
 tbEquipes = Table( 'equipes', metadata )
 

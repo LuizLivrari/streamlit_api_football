@@ -16,7 +16,7 @@ coluna01.header( ':blue[:material/system_update_alt:] Atualizar Informações :b
 
 with coluna02.popover(label=':material/settings:'):
     st.text('Funções')
-    st.page_link('pages/jogosdia.py', label=':violet[:material/today:] Jogos do dia', use_container_width=True)
+    st.page_link('paginas/jogosdia.py', label=':violet[:material/today:] Jogos do dia', use_container_width=True)
 
 coluna01, coluna02 = st.columns( 2, vertical_alignment='top' )
 

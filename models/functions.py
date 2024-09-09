@@ -1,68 +1,14 @@
 import requests
-from models.configs import apiKey, varEngine#, OpenAIClient, MODEL
-from models.models import tbJogos, tbCampeonatos, tbJogosEstatisticas, tbPaises, tbEquipes, tbStatus
+from models.configs import HEADERS, varEngine
+from models.models import tbJogos, tbCampeonatos, tbEstatisticas, tbPaises, tbEquipes, tbStatus
 from datetime import datetime
 import json
 import pandas as pd
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy import Select
+from sqlalchemy.orm import Session
 import streamlit as st
 import time
-
-# def funOpenAIjogo( varJSON ):
-
-# 	file = OpenAIClient.files.create(
-# 		file=open("fixtures.json", "rb"),
-# 		purpose='assistants'
-# 	)
-
-# 	Assistente = OpenAIClient.beta.assistants.retrieve(
-# 		assistant_id= 'asst_EqsyIophT1BoP4wAoE4CPBqY'
-# 	)
-
-# 	thread = OpenAIClient.beta.threads.create(
-# 		messages=[
-# 			{
-# 				"role": "user",
-# 				"content": "Por favor, trate e retorne os dados do arquivo JSON enviado anexo.",
-# 				"attachments": [
-# 					{
-# 						"file_id": file.id,
-# 						"tools": [
-# 							{ "type": "code_interpreter" }
-# 						]
-# 					}
-# 				]
-# 			}
-# 		]
-# 	)
-
-# 	run = OpenAIClient.beta.threads.runs.create_and_poll(
-# 		thread_id= thread.id,
-# 		assistant_id= Assistente.id
-# 	)
-
-
-# 	import time
-
-# 	while run.status in ['queued', 'in_progress', 'cancelling']:
-# 		time.sleep(1)
-# 		run = OpenAIClient.beta.threads.runs.retrieve(
-# 			thread_id= thread.id,
-# 			run_id= run.id
-# 		)
-
-# 	if run.status == 'completed': 
-# 		classResposta = OpenAIClient.beta.threads.messages.list(
-# 			thread_id=thread.id,
-# 			limit= 1
-# 		)
-# 		with open( 'resposta.json', 'w' ) as Arquivo:
-# 			Arquivo.write( classResposta.to_json )
-# 		# print(classResposta.data[0].content[0].text.value)
-# 	else:
-# 		print(run.status)
-
 
 def funErros( parErros ):
 
@@ -86,18 +32,19 @@ def funErros( parErros ):
 		return False
 
 
+def funRequest( parURL, parPArametros ):
+	jsonRequest = requests.request("GET", parURL, params=parPArametros, headers=HEADERS )
+	return jsonRequest.json()
+
 
 def funAtualizaJogos():
 
 	varURL = 'https://v3.football.api-sports.io/fixtures'
 
-	headers = {
-		'x-rapidapi-host': 'v3.football.api-sports.io',
-		'x-rapidapi-key': apiKey
-	}
-
 	with varEngine.begin() as engine:
-		listaCampeonatos = engine.execute( Select( tbCampeonatos.columns['ID', 'Temporada Atual'] ) ).all()
+		listaCampeonatos = engine.execute( Select( tbCampeonatos.c.ID, tbCampeonatos.c['Temporada Atual'] ) ).all()
+
+	listaJogos = []
 
 	for varCampeonato, varTemporada in listaCampeonatos:
 	
@@ -106,9 +53,7 @@ def funAtualizaJogos():
 			'season': varTemporada
 		}
 
-		jsonJogos = requests.request("GET", varURL, params=varParams, headers=headers )
-
-		jsonJogos = jsonJogos.json()
+		jsonJogos = funRequest( varURL, varParams )
 
 		with open( 'JSONS/fixtures.json', 'w' ) as arquivoJSON:
 			json.dump( jsonJogos, arquivoJSON, indent=4 )
@@ -119,11 +64,8 @@ def funAtualizaJogos():
 			continua = funErros( varErro )
 			if not continua:
 				return False
-
-		# Lista para armazenar os resultados
-		listaJogos = []
+			jsonJogos = funRequest( varURL, varParams )
 		
-		# Iterar sobre as jogos
 		for jogo in jsonJogos['response']:
 
 			fixture = jogo['fixture']
@@ -133,7 +75,7 @@ def funAtualizaJogos():
 			# Criar um dicionário para a jogo
 			fixture_dict = {
 				'ID': fixture['id'],
-				'Data': datetime.fromtimestamp(fixture['timestamp']), #.strftime('%Y-%m-%d %H:%M:%S'),
+				'Data': datetime.fromtimestamp(fixture['timestamp']),#.strftime('%Y-%m-%d %H:%M:%S'),
 				'ID Campeonato': league['id'],
 				'Temporada': league['season'],
 				'ID Equipe Casa': teams['home']['id'],
@@ -147,28 +89,20 @@ def funAtualizaJogos():
 		if not listaJogos:
 			return True
 
-	with varEngine.begin() as engine:
+	with Session( varEngine ) as session:
 
-		vStep = int( ( 65535 / len( listaJogos[0] ) ) ) 
+		varInsert = insert( tbJogos )
+		varInsertOrUpdate = varInsert\
+			.on_conflict_do_update(
+				constraint=tbJogos.primary_key,
+				set_={
+					'Data': varInsert.excluded.Data,
+					'Status':varInsert.excluded.Status
+				}
+			)
 
-		if vStep == 0:
-			vStep = 1
-
-		for chunk in range(0, len( listaJogos ), vStep):
-
-			print( 'Chunk: ', chunk, '  --  vStep: ', vStep )
-
-			varInsert = insert( tbJogos ).values( listaJogos[ chunk:chunk+vStep ] )
-			varInsertOrUpdate = varInsert\
-				.on_conflict_do_update(
-					constraint=tbJogos.primary_key,
-					set_={
-						'Data': varInsert.excluded.Data,
-						'Status':varInsert.excluded.Status
-		   			}
-				)
-
-			engine.execute( varInsertOrUpdate )
+		session.execute( varInsertOrUpdate, listaJogos )
+		session.commit()
 
 	return True
 
@@ -176,11 +110,6 @@ def funAtualizaJogos():
 def funAtualizaEstatisticas():
 
 	varURL = 'https://v3.football.api-sports.io/fixtures'
-
-	headers = {
-		'x-rapidapi-host': 'v3.football.api-sports.io',
-		'x-rapidapi-key': apiKey
-	}
 
 	varSQL = """
 		select
@@ -201,21 +130,19 @@ def funAtualizaEstatisticas():
 
 	for chunkParitdas in range(0, len( dfjogos ), varQtdejogos):
 
-		print( 'Total:', len( dfjogos ), '  --  Chunk:', chunkParitdas, '  --  vStep:', varQtdejogos )
+		# print( 'Total:', len( dfjogos ), '  --  Chunk:', chunkParitdas, '  --  vStep:', varQtdejogos )
 
 		varIDs = '-'.join( dfjogos[ chunkParitdas:chunkParitdas+varQtdejogos ][ 'ID' ].astype( str ) )
 
-		print( 'varIDs:', varIDs )
+		# print( 'varIDs:', varIDs )
 
 		varParams = {
 			'ids': varIDs
 		}
 
-		jsonEstatisticas = requests.request("GET", varURL, params=varParams, headers=headers )
+		jsonEstatisticas = funRequest( varURL, varParams )
 
-		jsonEstatisticas = jsonEstatisticas.json()
-
-		with open( 'estatisticas.json', 'w' ) as arquivoJSON:
+		with open( 'JSONS/estatisticas.json', 'w' ) as arquivoJSON:
 			json.dump( jsonEstatisticas, arquivoJSON, indent=4 )
 
 		varErro = jsonEstatisticas['errors']
@@ -224,6 +151,7 @@ def funAtualizaEstatisticas():
 			continua = funErros( varErro )
 			if not continua:
 				return False
+			jsonEstatisticas = funRequest( varURL, varParams )
 
 		# Lista para armazenar os resultados
 		listaEstatisticas = []
@@ -245,6 +173,12 @@ def funAtualizaEstatisticas():
 
 				dicEstatistica = {item['type']: item['value'] for item in estatistica['statistics']}
 
+				st.info( f'Partida { teams['home']['name'] } X { teams['away']['name'] } -- estatísticas: { len( dicEstatistica ) }.' )
+
+				if len( dicEstatistica ) == 0:
+					st.info( f'Partida { teams['home']['name'] } X { teams['away']['name'] } sem estatísticas.' )
+					continue
+
 				fixture_dict = {
 					'ID Jogo': fixture['id'],
 					'ID Equipe': estatistica['team']['id'],
@@ -258,7 +192,7 @@ def funAtualizaEstatisticas():
 					'Faltas': dicEstatistica['Fouls'] if dicEstatistica['Fouls'] else 0,
 					'Escanteios': dicEstatistica['Corner Kicks'] if dicEstatistica['Corner Kicks'] else 0,
 					'Impedimentos': dicEstatistica['Offsides'] if dicEstatistica['Offsides'] else 0,
-					'Posse de Bole': dicEstatistica['Ball Possession'].replace( '%','' ) if dicEstatistica['Ball Possession'] else 0,
+					'Posse de Bola': dicEstatistica['Ball Possession'].replace( '%','' ) if dicEstatistica['Ball Possession'] else 0,
 					'Cartoes Amarelos': dicEstatistica['Yellow Cards'] if dicEstatistica['Yellow Cards'] else 0,
 					'Cartoes Vermelhos': dicEstatistica['Red Cards'] if dicEstatistica['Red Cards'] else 0,
 					'Passes Total': dicEstatistica['Total passes'] if dicEstatistica['Total passes'] else 0,
@@ -273,20 +207,10 @@ def funAtualizaEstatisticas():
 		if not listaEstatisticas:
 			return True
 
-		with varEngine.begin() as engine:
+		with Session( varEngine ) as session:
 
-			vStep = int( ( 65535 / len( listaEstatisticas[0] ) ) ) 
-
-			if vStep == 0:
-				vStep = 1
-
-			for chunk in range(0, len( listaEstatisticas ), vStep):
-
-				print( 'Total:', len( listaEstatisticas ), '  --  Chunk:', chunk, '  --  vStep:', vStep )
-
-				varInsert = insert( tbJogosEstatisticas ).values( listaEstatisticas[ chunk:chunk+vStep ] )
-
-				engine.execute( varInsert )
+			session.execute( insert( tbEstatisticas ), listaEstatisticas )
+			session.commit()
 
 	return True
 
@@ -310,11 +234,6 @@ def funGetPredictions():
 
 	dfjogos = pd.read_sql_query( varSQL, varEngine )
 
-	headers = {
-		'x-rapidapi-host': 'v3.football.api-sports.io',
-		'x-rapidapi-key': apiKey
-	}
-
 	# print( dfjogos.to_dict(orient= 'records') )
 
 	for jogo in dfjogos.to_dict(orient= 'records'):
@@ -323,11 +242,9 @@ def funGetPredictions():
 			'fixture': jogo['fixture_id']
 		}
 
-		jsonPrediction = requests.request("GET", varURL, params=varParams, headers=headers )
+		jsonPrediction = funRequest( varURL, varParams )
 
-		jsonPrediction = jsonPrediction.json()
-
-		with open( 'predictions.json', 'a' ) as arquivoJSON:
+		with open( 'JSONS/predictions.json', 'a' ) as arquivoJSON:
 			json.dump( jsonPrediction, arquivoJSON, indent=4 )
 
 		varErro = jsonPrediction['errors']
@@ -336,6 +253,7 @@ def funGetPredictions():
 			continua = funErros( varErro )
 			if not continua:
 				return False
+			jsonPrediction = funRequest( varURL, varParams )
 
 		print( 'jogo:', jogo )
 		print( '		Predictions:', jsonPrediction )
@@ -343,17 +261,41 @@ def funGetPredictions():
 	return True
 
 
-def funJogosDia():
+def funJogosDia( varData ):
+
+	# HTML e CSS para criar o divisor vertical
+	st.markdown(
+		"""
+		<style>
+		.vertical-divider {
+			display: inline-block;
+			border-left: 2px solid #ccc;
+			height: 67px;
+			margin: 0 10px;
+		}
+		.abc {
+			display: flex;
+  			justify-content: center;
+  			align-items: center;
+		}
+		</style>
+		""",
+		unsafe_allow_html=True
+	)
 
 	dfPaises = pd.read_sql_table( tbPaises.name, varEngine )
 	dfCampeonatos = pd.read_sql_table( tbCampeonatos.name, varEngine )
 	dfjogos = pd.read_sql_table( tbJogos.name, varEngine )
 	dfEquipes = pd.read_sql_table( tbEquipes.name, varEngine )
 	dfStatus = pd.read_sql_table( tbStatus.name, varEngine )
+	dfEstatisticas = pd.read_sql_table( tbEstatisticas.name, varEngine )
 
-	dfjogosDia= dfjogos[ dfjogos['Data'].dt.date == datetime.today().date() ]
+	dfEstatisticas.set_index(['ID Jogo', 'ID Equipe'], inplace=True)
 
-	# return dfjogosDia.sort_values(by='Data')
+	filtroDataInicial = ( dfjogos['Data'].dt.date >= varData[0] )
+	filtroDataFinal = ( dfjogos['Data'].dt.date <= ( varData[1] if len( varData ) == 2 else varData[0] ) )
+
+	dfjogosDia= dfjogos[ filtroDataInicial & filtroDataFinal ]
 
 	dfFinal = \
 		dfjogosDia\
@@ -414,26 +356,52 @@ def funJogosDia():
 		
 	# dfFinal.set_index( 'Data', drop=True, inplace=True )
 	dfFinal['X'] = 'X'
-	dfFinal = dfFinal[ [ 'Data', 'País', 'Sigla', 'Bandeira', 'Campeonato', 'Logo', 'Status', 'Logo Casa', 'Equipe Casa', 'X', 'Equipe Fora', 'Logo Fora', 'ID Equipe Casa', 'ID Equipe Fora' ] ]
-	dfFinal.sort_index( ascending=True, inplace=True )
+	dfFinal = dfFinal[ [ 'ID', 'Data', 'País', 'Sigla', 'Bandeira', 'Campeonato', 'Logo', 'Status', 'Logo Casa', 'ID Equipe Casa', 'Equipe Casa', 'X', 'ID Equipe Fora', 'Equipe Fora', 'Logo Fora', ] ]
+	dfFinal.sort_values( 'Data', ascending=True, inplace=True )
 
-	return dfFinal
+	for data in dfFinal['Data'].dt.date.unique():
+
+		st.markdown( f'###### {data.strftime('%d/%m/%Y')}' )
+
+		for jogo in dfFinal[dfFinal['Data'].dt.date == data ].to_dict(orient='records'):
+
+			with st.form(key=str(jogo['ID'])):
+
+				colData, colDivider01, colJogo, colDivider02, colDetalhes = st.columns([1, 0.5, 7, 0.5, 1], vertical_alignment='center')
+
+				colData.markdown( f'<div class="abc"> { str( jogo['Data'].time() ) } </div>', unsafe_allow_html=True )
+				colData.markdown( f'<div class="abc"> { jogo['Status'] } </div>', unsafe_allow_html=True )
+					# Renderiza o divisor
+				colDivider01.markdown('<div class="vertical-divider"></div>', unsafe_allow_html=True)
+
+
+				with colJogo:
+					colLogo, colEquipe, colPlacar = st.columns( [0.1, 0.85, 0.05], vertical_alignment='center' )
+
+					with colLogo:
+						st.image( jogo['Logo Casa'], width=30 )
+						st.image( jogo['Logo Fora'], width=30 )
+
+					with colEquipe:
+						st.write( jogo['Equipe Casa'] )
+						st.write( jogo['Equipe Fora'] )
+
+					with colPlacar:
+						st.write( str( dfEstatisticas.get( 'Gols FT', default='' ).get( ( jogo['ID'], jogo['ID Equipe Casa'] ), default='' ) ) )
+						st.write( str( dfEstatisticas.get( 'Gols FT', default='' ).get( ( jogo['ID'], jogo['ID Equipe Fora'] ), default='' ) ) )
+
+				colDivider02.markdown('<div class="vertical-divider"></div>', unsafe_allow_html=True)
+
+				colDetalhes.form_submit_button(label=':material/expand_content:', help='Ver detalhes da partida.' )
 
 
 def funAtualizaPaises():
 
 	varURL = 'https://v3.football.api-sports.io/countries'
 
-	headers = {
-		'x-rapidapi-host': 'v3.football.api-sports.io',
-		'x-rapidapi-key': apiKey
-	}
+	jsonPaises = funRequest( varURL, None )
 
-	jsonPaises = requests.request("GET", varURL, headers=headers )
-
-	jsonPaises = jsonPaises.json()
-
-	with open( 'paises.json', 'w' ) as arquivoJSON:
+	with open( 'JSONS/paises.json', 'w' ) as arquivoJSON:
 		json.dump( jsonPaises, arquivoJSON, indent=2 )
 
 	varErro = jsonPaises['errors']
@@ -442,6 +410,7 @@ def funAtualizaPaises():
 		continua = funErros( varErro )
 		if not continua:
 			return False
+		jsonPaises = funRequest( varURL, None )
 
 	jsonPaises = jsonPaises['response']
 
@@ -480,11 +449,6 @@ def funAtualizaCampeonatos():
 
 	varURL = 'https://v3.football.api-sports.io/leagues'
 
-	headers = {
-		'x-rapidapi-host': 'v3.football.api-sports.io',
-		'x-rapidapi-key': apiKey
-	}
-
 	tmpCampeonatos = [ 39, 40, 61, 62, 71, 72, 78, 79, 135, 136, 140, 141 ]
 
   	# Lista para armazenar os resultados
@@ -496,9 +460,7 @@ def funAtualizaCampeonatos():
 			'id': tmpCampeonato,
 		}
 
-		jsonCampeonatos = requests.request("GET", varURL, params=varParams, headers=headers )
-
-		jsonCampeonatos = jsonCampeonatos.json()
+		jsonCampeonatos = funRequest( varURL, varParams )
 
 		# with open( 'JSONS/campeonatos.json', 'a' ) as arquivoJSON:
 		# 	json.dump( jsonCampeonatos, arquivoJSON, indent=4 )
@@ -509,6 +471,7 @@ def funAtualizaCampeonatos():
 			continua = funErros( varErro )
 			if not continua:
 				return False
+			jsonCampeonatos = funRequest( varURL, varParams )
 
 		for campeonato in jsonCampeonatos['response']:
 
@@ -564,13 +527,11 @@ def funAtualizaEquipes():
 
 	varURL = 'https://v3.football.api-sports.io/teams'
 
-	headers = {
-		'x-rapidapi-host': 'v3.football.api-sports.io',
-		'x-rapidapi-key': apiKey
-	}
-
 	with varEngine.begin() as engine:
-		listaCampeonatos = engine.execute( Select( tbCampeonatos.columns['ID', 'Temporada Atual'] ) ).all()
+		listaCampeonatos = engine.execute( Select( tbCampeonatos.c.ID, tbCampeonatos.c['Temporada Atual'] ) ).all()
+
+	# Lista para armazenar os resultados
+	listaEquipes = []
 
 	for lista in listaCampeonatos:
 
@@ -581,11 +542,9 @@ def funAtualizaEquipes():
 			'season': temporada
 		}
 
-		jsonEquipes = requests.request("GET", varURL, params=varParams, headers=headers )
+		jsonEquipes = funRequest( varURL, varParams )
 
-		jsonEquipes = jsonEquipes.json()
-
-		with open( 'fixtures.json', 'w' ) as arquivoJSON:
+		with open( 'JSONS/equipes.json', 'a' ) as arquivoJSON:
 			json.dump( jsonEquipes, arquivoJSON, indent=2 )
 
 		varErro = jsonEquipes['errors']
@@ -594,14 +553,11 @@ def funAtualizaEquipes():
 			continua = funErros( varErro )
 			if not continua:
 				return False
+			jsonEquipes = funRequest( varURL, varParams )
 
-		# Lista para armazenar os resultados
-		listaEquipes = []
-    
-		# Iterar sobre as jogos
 		for varEquipe in jsonEquipes['response']:
 
-			equipe = equipe['team']
+			equipe = varEquipe['team']
 			
 			# Criar um dicionário para a jogo
 			equipe_dict = {
@@ -614,6 +570,8 @@ def funAtualizaEquipes():
 			
 			# Adicionar o dicionário à lista
 			listaEquipes.append(equipe_dict)
+
+	st.json( listaEquipes )
 
 	if not listaEquipes:
 		return True
@@ -644,4 +602,3 @@ def funAtualizaEquipes():
 			engine.execute( varInsertOrUpdate )
 
 	return True
-

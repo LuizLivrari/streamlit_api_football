@@ -2,26 +2,25 @@ import urllib.parse
 from sqlalchemy import create_engine
 import urllib.parse
 
-varStringConexao = f'postgresql+psycopg://{urllib.parse.quote_plus('postgres')}:{urllib.parse.quote_plus('ApiF@9137')}@177.16.165.92:8080/novo_banco'
+varStringConexao = f'postgresql+psycopg://{urllib.parse.quote_plus('postgres')}:{urllib.parse.quote_plus('ApiF9137')}@177.16.165.92:8080/novo_banco'
 
-varEngine = create_engine( varStringConexao, echo=True )
+varEngine = create_engine( varStringConexao, echo=False )
 
-apiKey = '6fae569f8142f8ad0bc5936831103948'
+HEADERS = {
+	'x-rapidapi-host': 'v3.football.api-sports.io',
+	'x-rapidapi-key': '6fae569f8142f8ad0bc5936831103948'
+}
 
 CSS = """
 	<style>
 
-		.appview-container .main .block-container {
-			# max-width: 95%;
-			padding-top: 2.8rem;
+		.stAppViewBlockContainer{
+			max-width: 70%;
+			padding: 2.8rem 0rem;
 		}
 
         #31d86dc4{
 			text-align: center;
-        }
-
-        #sports-soccer-jogos-do-dia-today{
-			# text-align: center;
         }
 
         h2 {
@@ -31,23 +30,6 @@ CSS = """
 		hr {
 			margin: 1rem 0rem;	
 		}
-
-		# /* Estilos para o botão de login */
-		# button {
-		# 	background-color: #4CAF50;
-		# 	color: white;
-		# 	padding: 15px 20px;
-		# 	margin: 10px 0;
-		# 	border: none;
-		# 	cursor: pointer;
-		# 	width: 100%;
-		# 	border-radius: 4px;
-		# 	font-size: 16px;
-		# }
-
-		# button:hover {
-		# 	background-color: #45a049;
-		# }
 
 	</style>
 """
