@@ -2,7 +2,7 @@ import urllib.parse
 from sqlalchemy import create_engine
 import urllib.parse
 
-varStringConexao = f'postgresql+psycopg://{urllib.parse.quote_plus('postgres')}:{urllib.parse.quote_plus('ApiF9137')}@177.16.165.92:8080/novo_banco'
+varStringConexao = f'postgresql+psycopg2://{urllib.parse.quote_plus('postgres')}:{urllib.parse.quote_plus('ApiF9137')}@177.16.165.92:8080/novo_banco'
 
 varEngine = create_engine( varStringConexao, echo=False )
 
